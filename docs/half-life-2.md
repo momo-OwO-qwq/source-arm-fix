@@ -141,3 +141,43 @@ ls -l "$HOME/.local/share/Steam/steamapps/common/Half-Life 2/hl2/glshaders.cfg"
 8. **尚未覆盖**：HL2 只跑到首张地图，没有压到会命中 dynarec 未实现指令的代码路径，
    所以摘要里 `BOX86_DYNAREC=0` 的解释器回退在 HL2 上**未验证**；
    若后续出现同类 `Unimplemented Opcode`，可直接沿用该回退。
+
+## 9. 从 Steam 直接启动仍然卡顿（2026-10-17 22:18 实测）
+
+用完脚本启动没问题，但从 Steam 点「开始游戏」照样卡——因为 Steam 根本不走脚本。
+实测进程树（`pgrep -af hl2`）：
+
+```
+pw-audio-namespace -- reaper SteamLaunch AppId=220 -- FEX-Emu/fex-compat-tool waitforexitandrun
+  -- SteamLinuxRuntime_soldier/_v2-entry-point -- scout-on-soldier-entry-point-v2
+  -- Half-Life 2/hl2.sh -steam -game hl2_complete
+```
+
+落到 `hl2_linux`（PID 63716）后现场取证：
+
+| 指标 | 数值 | 含义 |
+|---|---|---|
+| `ps -L` 中 llvmpipe 线程 | **8 条** | 软渲染 |
+| CPU | **481 %** | 八核跑满做光栅化 |
+| `comm` | `exe` | FEX 翻译层特征 |
+| `MESA_GLSL_CACHE_DIR` | `steamapps/shadercache/220` | 容器内独立缓存，和 box86 路线不共享 |
+
+即：容器里那套 x86 Mesa 没有 panfrost 驱动，只能 llvmpipe，GPU 全程没参与。
+所以**只要 Steam 点启动，前面几节的优化全部不生效**。
+
+### 绕开方式：用启动选项把 Steam 的命令前置换掉
+
+Steam 会用 shell 执行「启动选项 + 原命令」。启动选项里不含 `%command%` 时是**前置**，
+后面的原命令会变成多余参数；用 `sh -c '...'` 把它们丢掉即可：
+
+```
+sh -c 'exec "$HOME/source-arm-fix/scripts/play_source.sh" "$HOME/.local/share/Steam/steamapps/common/Half-Life 2" -steam -game hl2_complete -novid'
+```
+
+填入「属性 → 通用 → 启动选项」。`exec` 会替换掉 shell 进程，Steam 的 reaper 仍能跟踪，
+时长照常统计；但注意 `hl2.sh` 与容器不再执行，等价于本文前几节的脚本启动。
+
+已验证的语义（`sh -c '...' 多余参数...` 时脚本正常执行、多余参数被忽略）。
+尚未验证的备选：Steam 设置里关闭「为所有其他产品启用 Steam Play」，让 220 退回原生
+`hl2.sh` → `hl2_linux` → binfmt_misc 交给 box86（本机 i386 已注册到 box86），
+理论上更干净，但会影响其他依赖 FEX 的游戏，没实测。
