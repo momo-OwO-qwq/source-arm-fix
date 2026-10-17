@@ -238,17 +238,38 @@ def cmd_restore(elf: Elf32) -> int:
     return 0
 
 
+def cmd_status(elf: Elf32, mapping: dict[str, str]) -> int:
+    """机器可读状态：0=全部已修补，3=仍有待修补项，4=映射表里的替代符号缺失。"""
+    syms = elf.symbols()
+    pending = 0
+    for src, dst in mapping.items():
+        if src not in syms:
+            continue
+        if not any(n == src for _e, _o, n, _t in elf.relocations()):
+            continue
+        if dst not in syms:
+            print(f"MISSING_ALT {src} -> {dst}")
+            return 4
+        print(f"PENDING {src} -> {dst}")
+        pending += 1
+    print("OK" if pending == 0 else f"PENDING={pending}")
+    return 0 if pending == 0 else 3
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="修复 box86 下 32 位 Steam 客户端缺失符号导致的启动崩溃")
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument("--check", action="store_true", help="只检查，不修改")
     group.add_argument("--apply", action="store_true", help="应用修补")
     group.add_argument("--restore", action="store_true", help="从备份还原")
+    group.add_argument("--status", action="store_true", help="机器可读状态（0=已完成，3=待修补，4=缺替代符号）")
     group.add_argument("--list-symbols", action="store_true", help="列出所有被引用的符号")
     ap.add_argument("-f", "--file", help="steamclient.so 路径（默认自动查找）")
     args = ap.parse_args()
 
     elf = Elf32(find_steamclient(args.file))
+    if args.status:
+        return cmd_status(elf, DEFAULT_MAP)
     if args.check:
         return cmd_check(elf, DEFAULT_MAP)
     if args.list_symbols:

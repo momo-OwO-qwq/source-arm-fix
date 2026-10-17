@@ -1,5 +1,7 @@
 # source-arm-fix
 
+**中文** | [English](README.en.md)
+
 在 **ARM（aarch64）+ box86** 环境里运行 Steam 版 **32 位起源引擎游戏**时，
 解决「启动约 70 秒后崩溃退出」以及「`dlopen client.so error=2`」两类问题。
 
@@ -54,20 +56,37 @@ Steam 自动更新 32 位 steamclient.so
 
 ## 4. 使用
 
+### 一键（推荐）
+
 ```bash
 git clone <this-repo> source-arm-fix && cd source-arm-fix
+./install.sh              # 检查 → 修补 → 自检，自动备份
+./install.sh --dry-run    # 只预览，不修改
+./install.sh --yes        # 跳过确认
+./install.sh --restore    # 回滚
+./install.sh --file /path/to/steamclient.so   # 指定文件（多 Steam 目录时）
+```
 
+`install.sh` 的自检不是摆设：它会用 `--status` 复核「已无待修补项」，
+再独立校验一次 ELF 结构，两步都过才算成功（退出码 0）。
+
+### 手动
+
+```bash
 # 1) 先检查（只读）
 python3 scripts/fix_steamclient.py --check
 
 # 2) 应用修补（自动备份为 steamclient.so.bak-source-arm-fix）
 python3 scripts/fix_steamclient.py --apply
 
-# 3) 需要回滚时
+# 3) 机器可读状态：0=已完成，3=待修补，4=替代符号缺失
+python3 scripts/fix_steamclient.py --status
+
+# 4) 需要回滚时
 python3 scripts/fix_steamclient.py --restore
 ```
 
-Steam 每次更新客户端都会覆盖补丁，**更新后重跑 `--apply` 即可**。
+Steam 每次更新客户端都会覆盖补丁，**更新后重跑 `./install.sh` 即可**。
 
 ### 手动启动游戏（可选）
 
@@ -134,11 +153,13 @@ watch -n1 cat /sys/class/devfreq/*gpu*/cur_freq
 ## 8. 目录结构
 
 ```
+install.sh             # 一键：检查 → 修补 → 自检（--dry-run / --yes / --restore）
 scripts/
-  fix_steamclient.py   # ELF 重定位改指工具（check / apply / restore / list）
+  fix_steamclient.py   # ELF 重定位改指工具（check / apply / restore / status / list）
   play_source.sh       # 通用启动脚本（LD_LIBRARY_PATH + 绑核）
 docs/
   background.md        # 完整排查过程与判据
+README.en.md           # English README
 ```
 
 ## License
