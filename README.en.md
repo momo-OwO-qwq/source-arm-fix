@@ -95,7 +95,33 @@ The launcher:
    `LD_LIBRARY_PATH` (fixes `client.so error=2`);
 3. pins the process with `taskset`.
 
-## 5. Adding support for other titles
+## 5. Half-Life 2 (`hl2_complete`) notes
+
+Verified on HL2 (AppID 220) on 2026-10-17. Besides the symbol patch above, three more
+things decide whether it *stutters* instead of crashing. Full notes:
+[docs/half-life-2.md](docs/half-life-2.md) (Chinese).
+
+```bash
+./scripts/play_source.sh "$HOME/.local/share/Steam/steamapps/common/Half-Life 2" \
+    -game hl2_complete -novid
+```
+
+1. **Pass `-game hl2_complete` explicitly.** After the 20th-anniversary update Steam
+   launches `hl2_complete`, while the script infers `hl2` from the `hl2_linux` launcher name.
+2. **The first run compiles every shader on the fly.** The install has neither
+   `glbaseshaders.cfg` nor `glshaders.cfg` (Portal 2 ships them), so the log shows
+   `Could not find base GL shader cache file` and `Precache: Took 0 ms, Vertex 0, Pixel 0`.
+   The cache is only written to `hl2/glshaders.cfg` on a **clean shutdown** — `kill -9`
+   loses it. Load a map once (e.g. `+map d1_trainstation_01`) and close with `ALT+F4`.
+   Measured: 21.0 s -> 13.0 s to the main menu, `Precache` becomes 336 vertex / 796 pixel.
+3. **Default video settings are too heavy**: `mat_antialias 4` + `mat_forceaniso 16`
+   + `mat_vsync 1` on a Mali-G610; use 0 / 4 / 0.
+
+Known leftover: manually launched sessions burn ~9-10 s in
+`Timed out waiting for game mapping!`; `SteamAppId`, `SteamClientLaunch` and `-steam`
+do not remove it.
+
+## 6. Adding support for other titles
 
 The patch is global — `~/.local/share/Steam/linux32/steamclient.so` is shared by all
 32-bit Steam games, so one patch covers them all.
@@ -119,7 +145,7 @@ Rules for a safe mapping:
 - **Behaviour**: degradation must stay safe ("lose the timeout" is fine,
   "lose the lock" is not).
 
-## 6. Verification
+## 7. Verification
 
 ```bash
 pgrep -x portal2_linux                                  # process survives > 2 min
@@ -127,7 +153,7 @@ ps -L -p $(pgrep -x portal2_linux) | grep -c llvmpipe   # expect 0 (no software 
 watch -n1 cat /sys/class/devfreq/*gpu*/cur_freq         # 300 MHz idle → ~1000 MHz loaded
 ```
 
-## 7. Caveats
+## 8. Caveats
 
 - You are modifying a Steam client library, locally; keep the backup, judge the risk yourself.
 - This project contains no DRM circumvention — it only repairs dynamic-link compatibility.
@@ -135,7 +161,7 @@ watch -n1 cat /sys/class/devfreq/*gpu*/cur_freq         # 300 MHz idle → ~1000
 - Known limitation: timeouts are lost. If a title ever deadlocks, use `--restore`
   and switch to rebuilding box86 instead.
 
-## 8. Layout
+## 9. Layout
 
 ```
 install.sh               # one-shot: check → patch → self-test
@@ -144,6 +170,7 @@ scripts/
   play_source.sh         # generic launcher (LD_LIBRARY_PATH + CPU pinning)
 docs/
   background.md          # full investigation log and ruled-out approaches
+  half-life-2.md         # HL2 startup stutter (shader cache / launch path)
 ```
 
 ## License

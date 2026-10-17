@@ -107,7 +107,31 @@ CPUS=6-7 ./scripts/play_source.sh "<游戏目录>"     # 指定绑核
    `LD_LIBRARY_PATH`（解决 `client.so error=2`）；
 3. 用 `taskset` 绑大核。
 
-## 5. 适配其他起源引擎游戏
+## 5. Half-Life 2（`hl2_complete`）补充
+
+2026-10-17 在 HL2（AppID 220）上复验，除了本文的符号补丁，还有三处必须处理，
+否则表现是「启动卡顿」而不是崩溃。完整记录见 [docs/half-life-2.md](docs/half-life-2.md)。
+
+```bash
+./scripts/play_source.sh "$HOME/.local/share/Steam/steamapps/common/Half-Life 2" \
+    -game hl2_complete -novid
+```
+
+1. **必须显式 `-game hl2_complete`**：20 周年更新后 Steam 主启动项用的是
+   `hl2_complete`，而脚本按启动器名 `hl2_linux` 推断会得到 `hl2`。
+2. **首次启动会现场编译全部着色器**：HL2 目录里既无 `glbaseshaders.cfg` 也无
+   `glshaders.cfg`（Portal 2 是有的），日志会出现
+   `Could not find base GL shader cache file` 和 `Precache: Took 0 ms, Vertex 0, Pixel 0`。
+   缓存只在**正常退出**时写回 `hl2/glshaders.cfg`，`kill -9` 不写。
+   做法：进一次地图（如 `+map d1_trainstation_01`）→ 窗口 `ALT+F4` 正常退出。
+   实测二次启动到菜单从 21.0s 降到 13.0s，`Precache` 变为 336 顶点 / 796 像素。
+3. **画面设置偏重**：`mat_antialias 4` + `mat_forceaniso 16` + `mat_vsync 1` 对
+   Mali-G610 太重，建议 0 / 4 / 0。
+
+已知残留：手动启动时 `Timed out waiting for game mapping!` 会耗掉约 9–10 秒，
+`SteamAppId`、`SteamClientLaunch`、`-steam` 均无法消除，待后续处理。
+
+## 6. 适配其他起源引擎游戏
 
 符号补丁是**全局的**（`~/.local/share/Steam/linux32/steamclient.so` 被所有
 32 位 Steam 游戏共用），所以一次修补即可覆盖全部游戏。
@@ -129,7 +153,7 @@ python3 scripts/fix_steamclient.py --list-symbols | grep -i pthread
 - **返回值**：类型一致，错误码语义一致。
 - **语义**：退化后仍安全（例如「去掉超时」比「去掉加锁」安全得多）。
 
-## 6. 验证清单
+## 7. 验证清单
 
 ```bash
 # 进程是否活着（超过 2 分钟基本就稳了）
@@ -142,7 +166,7 @@ ps -L -p $(pgrep -x portal2_linux) | grep -c llvmpipe   # 期望 0
 watch -n1 cat /sys/class/devfreq/*gpu*/cur_freq
 ```
 
-## 7. 注意事项
+## 8. 注意事项
 
 - 修改的是 Steam 客户端自己的库文件，**仅影响本机**；请自行评估风险并保留备份。
 - 本工具不含任何绕过授权、破解或盗版相关内容，只修复动态链接兼容性。
@@ -150,7 +174,7 @@ watch -n1 cat /sys/class/devfreq/*gpu*/cur_freq
 - 已知限制：失去超时语义。若某游戏在极端情况下出现「加锁卡死」，
   可以用 `--restore` 回滚，并改用重编 box86 的方案。
 
-## 8. 目录结构
+## 9. 目录结构
 
 ```
 install.sh             # 一键：检查 → 修补 → 自检（--dry-run / --yes / --restore）
@@ -159,6 +183,7 @@ scripts/
   play_source.sh       # 通用启动脚本（LD_LIBRARY_PATH + 绑核）
 docs/
   background.md        # 完整排查过程与判据
+  half-life-2.md       # HL2 启动卡顿（着色器缓存 / 启动方式）实测
 README.en.md           # English README
 ```
 

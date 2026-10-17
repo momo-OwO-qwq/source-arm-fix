@@ -102,6 +102,10 @@ if [[ ${DRY_RUN:-0} == "1" ]]; then
     exit 0
 fi
 
+# 引擎是按相对路径找 hl2/、platform/ 等资源的，必须切到游戏根目录再执行；
+# 否则 hl2_linux 会直接打印 "Failed to load the launcher" 退出。
+cd "$GAME_DIR"
+
 export LD_LIBRARY_PATH="$LIB_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 [[ -n "${BOX86_LOG:-}" ]] && export BOX86_LOG
 [[ -n "${BOX86_DYNAREC:-}" ]] && export BOX86_DYNAREC
