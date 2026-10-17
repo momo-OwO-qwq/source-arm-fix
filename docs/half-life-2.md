@@ -113,3 +113,31 @@ ls -l "$HOME/.local/share/Steam/steamapps/common/Half-Life 2/hl2/glshaders.cfg"
   走引擎 Shutdown 并写着色器缓存。
 - `wmctrl -ic <win>` 对 SDL 窗口无效，别用。
 - `kill -9` 能清进程，但**不写缓存**，等于白预热一次。
+
+## 8. 与 Portal 2 记录的交叉验证（2026-10-17）
+
+对照 `docs/portal2-2026-10-01-full-investigation.md` 与
+`docs/portal2-2026-10-11-continuation.md` 两份摘要：
+
+1. **`steamclient.so` 缺符号那条可以结案。** 续篇摘要把「SteamAPI 第二次 init 失败」
+   归到新版 32 位 `steamclient.so` 引用 `pthread_mutex_clocklock`（glibc 2.36+）、
+   box86 符号表未实现，正是本仓库 `scripts/fix_steamclient.py` 要补的符号。
+   补丁落地后 HL2 每次启动都打出 `[S_API] SteamAPI_Init(): Loaded steamclient.so OK.`，
+   说明补丁在 box86 + 新 Steam linux32 组件下确实生效。
+2. **`client.so` 的 dlopen `error=2` 在 HL2 侧未复现**：`hl2/bin/client.so`、`server.so`
+   均一次加载成功，没有反复重试。
+3. **32 位全链路只能用 box86 或 FEX**：`hl2_linux` 与 `bin/*.so`、`hl2/bin/*.so` 全是 i386，
+   和 Portal 2 一样不能用 box64。
+4. **容器链解释了 HL2 默认启动为什么更差**：`fex-compat-tool` 本身不套容器，是 Steam 套的
+   scout-on-soldier；rootfs 里的 x86 Mesa 没有 panfrost 驱动，只能 llvmpipe。
+   HL2 走 box86 直启绕开了整条容器 + thunks 链，实测 `ps -L` 无 llvmpipe、GPU 1000MHz。
+5. **基线对齐**：本次实测跑在 `mesa 26.2.4~kisak1`（即摘要里「正常」的那版），
+   菜单与 `d1_trainstation_01` 均无花屏，和「26.0.8 才有 panfrost bug」一致。
+6. **别加 `MESA_GL_VERSION_OVERRIDE`**：摘要把谎报 GL/GLSL 版本列为花屏诱因之一；
+   HL2 侧脚本不设这两项，画面正常。以后为了绕过
+   `SDL failed to create GL compatibility profile` 去加谎报，HL2 会跟着花屏。
+7. **`pgrep -x` 陷阱只在 FEX 下成立**（`comm` 变成 `exe`）。HL2 走 box86 时 `comm` 仍是
+   `hl2_linux`，本文 §4 的数据就是这么取的。
+8. **尚未覆盖**：HL2 只跑到首张地图，没有压到会命中 dynarec 未实现指令的代码路径，
+   所以摘要里 `BOX86_DYNAREC=0` 的解释器回退在 HL2 上**未验证**；
+   若后续出现同类 `Unimplemented Opcode`，可直接沿用该回退。

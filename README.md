@@ -184,6 +184,8 @@ scripts/
 docs/
   background.md        # 完整排查过程与判据
   half-life-2.md       # HL2 启动卡顿（着色器缓存 / 启动方式）实测
+  portal2-2026-10-11-continuation.md  # Portal 2 续篇要点摘要（steamclient 符号 / dynarec 缺口）
+  portal2-2026-10-01-full-investigation.md  # Portal 2 全记录要点摘要（FEX/TSO/thunks/花屏）
 README.en.md           # English README
 ```
 

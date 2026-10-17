@@ -171,6 +171,8 @@ scripts/
 docs/
   background.md          # full investigation log and ruled-out approaches
   half-life-2.md         # HL2 startup stutter (shader cache / launch path)
+  portal2-2026-10-11-continuation.md  # Portal 2 follow-up summary (steamclient symbols, dynarec gap)
+  portal2-2026-10-01-full-investigation.md  # Portal 2 full investigation summary (FEX/TSO/thunks/artifacts)
 ```
 
 ## License
